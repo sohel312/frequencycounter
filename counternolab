@@ -1,0 +1,104 @@
+int freqPin = 13; // Pin to read frequency signal
+int pinA = 2;
+int pinB = 3;
+int pinC = 4;
+int pinD = 5;
+int pinE = 6;
+int pinF = 7;
+int pinG = 8;
+int D1 = 12;
+int D2 = 11;
+int D3 = 10;
+int D4 = 9;
+
+int digits[4] = {D1, D2, D3, D4}; // Array for digit control pins
+int number[10][7] = {             // Segment values for 0-9
+    {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH, LOW}, // 0
+    {LOW, HIGH, HIGH, LOW, LOW, LOW, LOW},     // 1
+    {HIGH, HIGH, LOW, HIGH, HIGH, LOW, HIGH},  // 2
+    {HIGH, HIGH, HIGH, HIGH, LOW, LOW, HIGH},  // 3
+    {LOW, HIGH, HIGH, LOW, LOW, HIGH, HIGH},   // 4
+    {HIGH, LOW, HIGH, HIGH, LOW, HIGH, HIGH},  // 5
+    {HIGH, LOW, HIGH, HIGH, HIGH, HIGH, HIGH}, // 6
+    {HIGH, HIGH, HIGH, LOW, LOW, HIGH, LOW},   // 7
+    {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH, HIGH},// 8
+    {HIGH, HIGH, HIGH, HIGH, LOW, HIGH, HIGH}  // 9
+};
+
+volatile unsigned long pulseCount = 0; // Counter for pulses
+unsigned long lastPulseTime = 0;       // Last time pulses were counted
+const unsigned long measureInterval = 1000; // Measure frequency every 1 second
+unsigned long lastUpdateTime = 0;      // Last time display was updated
+int displayNum = 0;                    // 4-digit number to display
+int index = 0;                         // Current digit index (0-3)
+
+// ISR to count pulses
+void countPulse() {
+  pulseCount++;
+}
+
+void setup() {
+  // Initialize pins as outputs
+  pinMode(pinA, OUTPUT);
+  pinMode(pinB, OUTPUT);
+  pinMode(pinC, OUTPUT);
+  pinMode(pinD, OUTPUT);
+  pinMode(pinE, OUTPUT);
+  pinMode(pinF, OUTPUT);
+  pinMode(pinG, OUTPUT);
+  pinMode(D1, OUTPUT);
+  pinMode(D2, OUTPUT);
+  pinMode(D3, OUTPUT);
+  pinMode(D4, OUTPUT);
+
+  pinMode(freqPin, INPUT); // Set frequency pin as input
+
+  attachInterrupt(digitalPinToInterrupt(freqPin), countPulse, RISING); // Attach interrupt for rising edge
+  Serial.begin(9600); // Initialize serial communication
+}
+
+void displayDigit(int digit, int position) {
+  // Turn off all digit control pins
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(digits[i], HIGH);
+  }
+
+  // Activate the corresponding digit control pin
+  digitalWrite(digits[position], LOW);
+
+  // Set segments for the digit
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(pinA + i, number[digit][i]);
+  }
+}
+
+void loop() {
+  // Update the 7-segment display (multiplexing)
+  if (millis() - lastUpdateTime >= 2) {
+    lastUpdateTime = millis();
+
+    // Extract digit and display it
+    int digit = (displayNum / (int)pow(10, 3 - index)) % 10;
+    displayDigit(digit, index);
+
+    // Move to the next digit
+    index = (index + 1) % 4;
+  }
+
+  // Measure frequency every 1 second
+  if (millis() - lastPulseTime >= measureInterval) {
+    noInterrupts(); // Disable interrupts while accessing shared variables
+    unsigned long count = pulseCount;
+    pulseCount = 0;
+    interrupts(); // Re-enable interrupts
+
+    // Calculate frequency
+    displayNum = count; // Frequency in Hz (pulses per second)
+
+    // Debug: Print frequency to Serial Monitor
+    Serial.print("Frequency: ");
+    Serial.println(displayNum);
+
+    lastPulseTime = millis();
+  }
+}
